@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  bookings     Booking[]
+  ownedTurfs   Turf[]    @relation("TurfOwner")
+}
+
+model Turf {
+  id                  String    @id @default(cuid())
+  name                String
+  description         String
+  address             String
+  city                String
+  area                String?
+  sportType           String
+  pricePerHour        Decimal   @db.Decimal(10, 2)
+  openTimeMinutes     Int
+  closeTimeMinutes    Int
+  slotDurationMinutes Int       @default(60)
+  amenities           String[]
+  images              String[]
+  lat                 Float?
+  lng                 Float?
+  isActive            Boolean   @default(true)
+  embedding           Float[]   @default([])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  bookings            Booking[]
+  blockedSlots        BlockedSlot[]
+  ownerId             String?
+  owner               User?     @relation("TurfOwner", fields: [ownerId], references: [id])
+  contactNumber       String?
+  commissionPercent   Decimal   @db.Decimal(5, 2) @default(10)
+
+  @@index([city])
+  @@index([ownerId])
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  bookingNumber   Int           @unique @default(autoincrement())
+  turfId          String
+  turf            Turf          @relation(fields: [turfId], references: [id])
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  date            String
+  startMinutes    Int
+  endMinutes      Int
+  status          BookingStatus @default(CONFIRMED)
+  pricePaid       Decimal       @db.Decimal(10, 2)
+  paymentProvider String?
+  paymentRefId    String?
+  paymentStatus   String        @default("PAY_AT_VENUE")
+  createdAt       DateTime      @default(now())
+  cancelledAt     DateTime?
+  platformCommission Decimal    @db.Decimal(10, 2) @default(0)
+
+  @@index([userId])
+  @@index([turfId, date])
+}
+
+model BlockedSlot {
+  id           String   @id @default(cuid())
+  turfId       String
+  turf         Turf     @relation(fields: [turfId], references: [id])
+  date         String
+  startMinutes Int
+  endMinutes   Int
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([turfId, date])
+}
