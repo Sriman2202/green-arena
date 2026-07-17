@@ -1,24 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Green Arena is a turf booking platform built with [Next.js](https://nextjs.org), Prisma, and PostgreSQL.
 
-## Getting Started
+## Running locally
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 20.9+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for the local PostgreSQL database)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Steps
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Clone the repo and install dependencies:**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   git clone https://github.com/Sriman2202/green-arena.git
+   cd green-arena
+   npm install
+   ```
+
+2. **Configure environment variables.** A `.env` file with working local defaults is already included, containing:
+
+   ```
+   DATABASE_URL="postgresql://greenarena:greenarena@localhost:5432/greenarena?schema=public"
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="dev-only-secret-change-in-production-000000000000"
+   GEMINI_API_KEY="<your Gemini API key from https://aistudio.google.com/apikey>"
+   ```
+
+   Replace `GEMINI_API_KEY` with your own key if you plan to exercise AI-powered features.
+
+3. **Start the local PostgreSQL database** (via `docker-compose.yml`):
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Apply database migrations:**
+
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+5. **(Optional) Seed sample data** — populates sample turf listings:
+
+   ```bash
+   npx tsx prisma/seed.ts
+   ```
+
+6. **Start the development server:**
+
+   ```bash
+   npm run dev
+   ```
+
+7. **Open the app** at [http://localhost:3000](http://localhost:3000).
+
+To stop the database when you're done: `docker compose down` (add `-v` to also wipe the data volume).
 
 ## Learn More
 
