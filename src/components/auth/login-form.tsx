@@ -5,6 +5,7 @@ import Link from "next/link";
 import { login, type AuthFormState } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Field,
   FieldGroup,
@@ -36,10 +37,9 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         </Field>
         <Field data-invalid={!!state.fieldErrors?.password}>
           <FieldLabel htmlFor="password">Password</FieldLabel>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             required
           />

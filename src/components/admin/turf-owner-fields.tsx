@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +77,7 @@ export function TurfOwnerFields({
           </Field>
           <Field>
             <FieldLabel htmlFor="newOwnerPassword">Password</FieldLabel>
-            <Input id="newOwnerPassword" name="newOwnerPassword" type="password" />
+            <PasswordInput id="newOwnerPassword" name="newOwnerPassword" />
           </Field>
         </>
       )}
