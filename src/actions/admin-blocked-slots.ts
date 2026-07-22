@@ -4,9 +4,54 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { blockSlotSchema } from "@/lib/validations/blocked-slot";
+import { generateSlotStarts } from "@/lib/slots";
 
 export interface BlockSlotFormState {
   error?: string;
+}
+
+export interface AdminDaySlot {
+  startMinutes: number;
+  endMinutes: number;
+  status: "open" | "booked" | "blocked";
+  blockedSlotId?: string;
+}
+
+export async function getAdminDaySlots(turfId: string, date: string): Promise<AdminDaySlot[]> {
+  const user = await requireAdmin();
+
+  const turf = await prisma.turf.findUnique({ where: { id: turfId } });
+  if (!turf) return [];
+  if (user.role === "ADMIN" && turf.ownerId !== user.id) return [];
+
+  const [bookings, blockedSlots] = await Promise.all([
+    prisma.booking.findMany({
+      where: { turfId, date, status: "CONFIRMED" },
+      select: { startMinutes: true, endMinutes: true },
+    }),
+    prisma.blockedSlot.findMany({
+      where: { turfId, date },
+      select: { id: true, startMinutes: true, endMinutes: true },
+    }),
+  ]);
+
+  const overlapping = <T extends { startMinutes: number; endMinutes: number }>(
+    ranges: T[],
+    startMinutes: number,
+    endMinutes: number
+  ) => ranges.find((r) => startMinutes < r.endMinutes && endMinutes > r.startMinutes);
+
+  return generateSlotStarts(turf).map((startMinutes) => {
+    const endMinutes = startMinutes + turf.slotDurationMinutes;
+    if (overlapping(bookings, startMinutes, endMinutes)) {
+      return { startMinutes, endMinutes, status: "booked" };
+    }
+    const blocked = overlapping(blockedSlots, startMinutes, endMinutes);
+    if (blocked) {
+      return { startMinutes, endMinutes, status: "blocked", blockedSlotId: blocked.id };
+    }
+    return { startMinutes, endMinutes, status: "open" };
+  });
 }
 
 export async function blockSlot(

@@ -15,18 +15,20 @@ import { UnblockSlotButton } from "@/components/admin/unblock-slot-button";
 import { minutesToLabel } from "@/lib/slots";
 import { CURRENCY_SYMBOL, formatBookingReference } from "@/lib/constants";
 import { requireAdmin } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import type { BookingStatus, Prisma } from "@/generated/prisma/client";
 
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ turfId?: string; date?: string; status?: string }>;
+  searchParams: Promise<{ date?: string; status?: string }>;
 }) {
-  const { turfId, date, status } = await searchParams;
+  const { date, status } = await searchParams;
   const user = await requireAdmin();
+  if (user.role !== "ADMIN") redirect("/admin");
 
   const turfs = await prisma.turf.findMany({
-    where: { ...(user.role === "ADMIN" ? { ownerId: user.id } : {}) },
+    where: { ownerId: user.id },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -38,10 +40,9 @@ export default async function AdminBookingsPage({
   });
 
   const where: Prisma.BookingWhereInput = {
-    ...(turfId ? { turfId } : {}),
     ...(date ? { date } : {}),
     ...(status ? { status: status as BookingStatus } : {}),
-    ...(user.role === "ADMIN" ? { turf: { ownerId: user.id } } : {}),
+    turf: { ownerId: user.id },
   };
 
   const bookings = await prisma.booking.findMany({
@@ -52,9 +53,8 @@ export default async function AdminBookingsPage({
   });
 
   const blockedSlotsWhere: Prisma.BlockedSlotWhereInput = {
-    ...(turfId ? { turfId } : {}),
     ...(date ? { date } : {}),
-    ...(user.role === "ADMIN" ? { turf: { ownerId: user.id } } : {}),
+    turf: { ownerId: user.id },
   };
 
   const blockedSlots = await prisma.blockedSlot.findMany({
@@ -72,24 +72,6 @@ export default async function AdminBookingsPage({
         method="get"
         className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4"
       >
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="turfId" className="text-xs font-medium text-muted-foreground">
-            Turf
-          </label>
-          <select
-            id="turfId"
-            name="turfId"
-            defaultValue={turfId ?? ""}
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            <option value="">All turfs</option>
-            {turfs.map((turf) => (
-              <option key={turf.id} value={turf.id}>
-                {turf.name}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="date" className="text-xs font-medium text-muted-foreground">
             Date
@@ -121,7 +103,7 @@ export default async function AdminBookingsPage({
         <Button type="submit" size="sm">
           Apply
         </Button>
-        {(turfId || date || status) && (
+        {(date || status) && (
           <Button variant="ghost" size="sm" render={<Link href="/admin/bookings" />}>
             Clear
           </Button>
@@ -178,7 +160,7 @@ export default async function AdminBookingsPage({
 
       <h2 className="text-xl font-semibold">Blocked slots</h2>
 
-      <BlockSlotForm turfs={turfs} defaultTurfId={turfId} />
+      <BlockSlotForm turfs={turfs} />
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <Table>

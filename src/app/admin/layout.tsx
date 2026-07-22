@@ -6,7 +6,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -19,9 +19,11 @@ export default async function AdminLayout({
           <Link href="/admin/turfs" className="text-foreground/80 hover:text-foreground">
             Turfs
           </Link>
-          <Link href="/admin/bookings" className="text-foreground/80 hover:text-foreground">
-            Bookings
-          </Link>
+          {user.role !== "SUPER_ADMIN" && (
+            <Link href="/admin/bookings" className="text-foreground/80 hover:text-foreground">
+              Bookings
+            </Link>
+          )}
         </nav>
       </div>
       {children}

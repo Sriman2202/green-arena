@@ -6,16 +6,17 @@ import { AdminNavLink } from "@/components/layout/admin-nav-link";
 
 export async function Navbar() {
   const session = await auth();
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="font-heading text-2xl font-bold tracking-tight">
+        <Link href={isAdmin ? "/admin" : "/"} className="font-heading text-2xl font-bold tracking-tight">
           Green Arena
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm font-medium sm:flex">
-          {session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN" ? (
+          {isAdmin ? (
             <AdminNavLink />
           ) : (
             <>

@@ -26,11 +26,13 @@ export default async function AdminDashboardPage({
   const { turfId, from, to } = await searchParams;
   const user = await requireAdmin();
 
-  const turfs = await prisma.turf.findMany({
-    where: { ...(user.role === "ADMIN" ? { ownerId: user.id } : {}) },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  });
+  const turfs =
+    user.role === "SUPER_ADMIN"
+      ? await prisma.turf.findMany({
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : [];
 
   const toDate = parseDate(to) ?? new Date();
   const fromDate = parseDate(from) ?? (() => {
@@ -53,7 +55,7 @@ export default async function AdminDashboardPage({
     ...(user.role === "ADMIN" ? { turf: { ownerId: user.id } } : {}),
   };
 
-  const [revenueAgg, platformRevenueAgg, totalBookings, activeTurfs, dailyAgg] = await Promise.all([
+  const [revenueAgg, platformRevenueAgg, totalBookings, dailyAgg] = await Promise.all([
     prisma.booking.aggregate({
       _sum: { pricePaid: true },
       where: bookingFilter,
@@ -63,13 +65,6 @@ export default async function AdminDashboardPage({
       where: bookingFilter,
     }),
     prisma.booking.count({ where: bookingFilter }),
-    prisma.turf.count({
-      where: {
-        isActive: true,
-        ...(turfId ? { id: turfId } : {}),
-        ...(user.role === "ADMIN" ? { ownerId: user.id } : {}),
-      },
-    }),
     prisma.booking.groupBy({
       by: ["date"],
       where: bookingFilter,
@@ -104,24 +99,26 @@ export default async function AdminDashboardPage({
         method="get"
         className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4"
       >
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="turfId" className="text-xs font-medium text-muted-foreground">
-            Turf
-          </label>
-          <select
-            id="turfId"
-            name="turfId"
-            defaultValue={turfId ?? ""}
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            <option value="">All turfs</option>
-            {turfs.map((turf) => (
-              <option key={turf.id} value={turf.id}>
-                {turf.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {user.role === "SUPER_ADMIN" && (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="turfId" className="text-xs font-medium text-muted-foreground">
+              Turf
+            </label>
+            <select
+              id="turfId"
+              name="turfId"
+              defaultValue={turfId ?? ""}
+              className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+            >
+              <option value="">All turfs</option>
+              {turfs.map((turf) => (
+                <option key={turf.id} value={turf.id}>
+                  {turf.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="from" className="text-xs font-medium text-muted-foreground">
             From
@@ -144,7 +141,7 @@ export default async function AdminDashboardPage({
         )}
       </form>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -181,16 +178,6 @@ export default async function AdminDashboardPage({
           </CardHeader>
           <CardContent>
             <p className="font-heading text-3xl font-bold">{totalBookings}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Turfs
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-bold">{activeTurfs}</p>
           </CardContent>
         </Card>
       </div>
