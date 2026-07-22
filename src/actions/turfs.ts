@@ -15,7 +15,7 @@ async function computeTurfEmbeddingSafely(data: {
   description: string;
   city: string;
   area?: string | null;
-  sportType: string;
+  sportTypes: string[];
   amenities: string[];
 }): Promise<number[]> {
   try {
@@ -57,7 +57,7 @@ async function buildTurfInput(formData: FormData) {
       contactNumber: formData.get("contactNumber"),
       city: formData.get("city"),
       area: formData.get("area") || undefined,
-      sportType: formData.get("sportType"),
+      sportTypes: formData.getAll("sportTypes").map((value) => value.toString()),
       pricePerHour: formData.get("pricePerHour"),
       openTimeMinutes: formData.get("openTimeMinutes"),
       closeTimeMinutes: formData.get("closeTimeMinutes"),

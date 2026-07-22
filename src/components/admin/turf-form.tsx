@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import Image from "next/image";
-import { XIcon } from "lucide-react";
+import { ImagePlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { CITIES, SPORT_TYPES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import type { TurfFormState } from "@/actions/turfs";
 
 export interface TurfFormValues {
@@ -24,7 +25,7 @@ export interface TurfFormValues {
   contactNumber: string;
   city: string;
   area: string | null;
-  sportType: string;
+  sportTypes: string[];
   pricePerHour: number;
   openTimeMinutes: number;
   closeTimeMinutes: number;
@@ -93,8 +94,25 @@ export function TurfForm({
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedSports, setSelectedSports] = useState<string[]>(defaultValues?.sportTypes ?? []);
+
+  function toggleSport(sport: string) {
+    setSelectedSports((prev) =>
+      prev.includes(sport) ? prev.filter((s) => s !== sport) : [...prev, sport]
+    );
+  }
+
+  function syncFileInput(files: File[]) {
+    if (!fileInputRef.current) return;
+    const dataTransfer = new DataTransfer();
+    files.forEach((file) => dataTransfer.items.add(file));
+    fileInputRef.current.files = dataTransfer.files;
+  }
+
   function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    setNewFiles(Array.from(e.target.files ?? []));
+    const combined = [...newFiles, ...Array.from(e.target.files ?? [])];
+    setNewFiles(combined);
+    syncFileInput(combined);
   }
 
   function removeKeptImage(src: string) {
@@ -102,8 +120,9 @@ export function TurfForm({
   }
 
   function removeNewFile(index: number) {
-    setNewFiles((prev) => prev.filter((_, i) => i !== index));
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    const remaining = newFiles.filter((_, i) => i !== index);
+    setNewFiles(remaining);
+    syncFileInput(remaining);
   }
 
   return (
@@ -184,24 +203,40 @@ export function TurfForm({
           </Field>
         </div>
 
-        <Field data-invalid={!!state.fieldErrors?.sportType}>
-          <FieldLabel htmlFor="sportType">
-            Sport type
+        <Field data-invalid={!!state.fieldErrors?.sportTypes}>
+          <FieldLabel>
+            Sport types
             <RequiredMark />
           </FieldLabel>
-          <Input
-            id="sportType"
-            name="sportType"
-            list="sport-options"
-            defaultValue={defaultValues?.sportType}
-            required
-          />
-          <datalist id="sport-options">
-            {SPORT_TYPES.map((sport) => (
-              <option key={sport} value={sport} />
-            ))}
-          </datalist>
-          <FieldError errors={errorList(state.fieldErrors?.sportType)} />
+          <FieldDescription>Select every sport this turf supports.</FieldDescription>
+          <div className="flex flex-wrap gap-2">
+            {SPORT_TYPES.map((sport) => {
+              const checked = selectedSports.includes(sport);
+              return (
+                <label
+                  key={sport}
+                  className={cn(
+                    "select-none rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                    readOnly ? "pointer-events-none opacity-50" : "cursor-pointer",
+                    checked
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    name="sportTypes"
+                    value={sport}
+                    checked={checked}
+                    onChange={() => toggleSport(sport)}
+                    className="sr-only"
+                  />
+                  {sport}
+                </label>
+              );
+            })}
+          </div>
+          <FieldError errors={errorList(state.fieldErrors?.sportTypes)} />
         </Field>
 
         <div className="grid grid-cols-3 gap-4">
@@ -287,7 +322,7 @@ export function TurfForm({
         </Field>
 
         <Field data-invalid={!!state.fieldErrors?.images}>
-          <FieldLabel htmlFor="newImages">Photos</FieldLabel>
+          <FieldLabel>Photos</FieldLabel>
           <FieldDescription>Upload photos from your device (JPG/PNG, max 5MB each).</FieldDescription>
 
           {keptImages.length > 0 && (
@@ -309,7 +344,7 @@ export function TurfForm({
             </div>
           )}
 
-          <Input
+          <input
             id="newImages"
             name="newImages"
             type="file"
@@ -317,8 +352,21 @@ export function TurfForm({
             multiple
             ref={fileInputRef}
             onChange={handleFilesSelected}
-            className="cursor-pointer"
+            className="sr-only"
           />
+          <label
+            htmlFor="newImages"
+            className={cn(
+              "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-input bg-muted/30 px-4 py-8 text-center transition-colors",
+              readOnly
+                ? "pointer-events-none opacity-50"
+                : "cursor-pointer hover:border-primary/50 hover:bg-muted/50"
+            )}
+          >
+            <ImagePlusIcon className="size-6 text-muted-foreground" />
+            <span className="text-sm font-medium">Click to upload photos</span>
+            <span className="text-xs text-muted-foreground">JPG or PNG, up to 5MB each</span>
+          </label>
 
           {newFiles.length > 0 && (
             <div className="flex flex-wrap gap-3">

@@ -3,7 +3,7 @@ export interface TurfListItem {
   name: string;
   city: string;
   area: string | null;
-  sportType: string;
+  sportTypes: string[];
   pricePerHour: number;
   images: string[];
   lat: number | null;

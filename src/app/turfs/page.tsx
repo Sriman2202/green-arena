@@ -18,7 +18,7 @@ export default async function TurfsPage({
 
   const where: Prisma.TurfWhereInput = { isActive: true };
   if (city) where.city = city;
-  if (sport) where.sportType = sport;
+  if (sport) where.sportTypes = { has: sport };
   if (minPrice || maxPrice) {
     where.pricePerHour = {
       ...(minPrice ? { gte: Number(minPrice) } : {}),
@@ -36,7 +36,7 @@ export default async function TurfsPage({
     name: turf.name,
     city: turf.city,
     area: turf.area,
-    sportType: turf.sportType,
+    sportTypes: turf.sportTypes,
     pricePerHour: Number(turf.pricePerHour),
     images: turf.images,
     lat: turf.lat,

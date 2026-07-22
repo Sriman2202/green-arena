@@ -91,7 +91,7 @@ export default async function AdminTurfsPage({
               <TableRow key={turf.id}>
                 <TableCell className="font-medium">{turf.name}</TableCell>
                 <TableCell>{turf.city}</TableCell>
-                <TableCell>{turf.sportType}</TableCell>
+                <TableCell>{turf.sportTypes.join(", ")}</TableCell>
                 <TableCell>
                   {CURRENCY_SYMBOL}
                   {Number(turf.pricePerHour)}

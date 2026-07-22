@@ -30,9 +30,16 @@ export function TurfCard({
             No image available
           </div>
         )}
-        <Badge className="absolute left-3 top-3" variant="secondary">
-          {turf.sportType}
-        </Badge>
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1">
+          {turf.sportTypes.slice(0, 2).map((sport) => (
+            <Badge key={sport} variant="secondary">
+              {sport}
+            </Badge>
+          ))}
+          {turf.sportTypes.length > 2 && (
+            <Badge variant="secondary">+{turf.sportTypes.length - 2}</Badge>
+          )}
+        </div>
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         <h3 className="font-heading text-lg font-semibold leading-tight">

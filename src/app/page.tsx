@@ -49,7 +49,7 @@ export default async function HomePage() {
     name: turf.name,
     city: turf.city,
     area: turf.area,
-    sportType: turf.sportType,
+    sportTypes: turf.sportTypes,
     pricePerHour: Number(turf.pricePerHour),
     images: turf.images,
     lat: turf.lat,
@@ -146,7 +146,7 @@ export default async function HomePage() {
                 <div className="flex-1">
                   <p className="font-semibold">{turf.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {turf.sportType} · {turf.area ? `${turf.area}, ` : ""}
+                    {turf.sportTypes.join(", ")} · {turf.area ? `${turf.area}, ` : ""}
                     {turf.city}
                   </p>
                 </div>

@@ -32,7 +32,11 @@ export default async function TurfDetailPage({
         <div className="space-y-6">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{turf.sportType}</Badge>
+              {turf.sportTypes.map((sport) => (
+                <Badge key={sport} variant="secondary">
+                  {sport}
+                </Badge>
+              ))}
               {!turf.isActive && <Badge variant="destructive">Unavailable</Badge>}
             </div>
             <h1 className="font-heading text-3xl font-bold">{turf.name}</h1>

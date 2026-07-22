@@ -45,7 +45,7 @@ export default async function EditTurfPage({
           contactNumber: turf.contactNumber ?? "",
           city: turf.city,
           area: turf.area,
-          sportType: turf.sportType,
+          sportTypes: turf.sportTypes,
           pricePerHour: Number(turf.pricePerHour),
           openTimeMinutes: turf.openTimeMinutes,
           closeTimeMinutes: turf.closeTimeMinutes,

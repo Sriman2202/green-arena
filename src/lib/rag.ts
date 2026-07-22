@@ -22,12 +22,12 @@ export function buildTurfEmbeddingText(turf: {
   description: string;
   city: string;
   area?: string | null;
-  sportType: string;
+  sportTypes: string[];
   amenities: string[];
 }): string {
   return [
     turf.name,
-    turf.sportType,
+    turf.sportTypes.join(", "),
     turf.city + (turf.area ? ", " + turf.area : ""),
     turf.description,
     turf.amenities.length ? "Amenities: " + turf.amenities.join(", ") : "",
@@ -88,7 +88,7 @@ export function formatTurfsForContext(results: RetrievedTurf[]): string {
   if (results.length === 0) return "";
   const lines = results.map(
     ({ turf }, i) =>
-      `${i + 1}. ${turf.name} — ${turf.sportType} in ${turf.city}${turf.area ? ", " + turf.area : ""}. ` +
+      `${i + 1}. ${turf.name} — ${turf.sportTypes.join(", ")} in ${turf.city}${turf.area ? ", " + turf.area : ""}. ` +
       `₹${turf.pricePerHour}/hour. Amenities: ${turf.amenities.join(", ") || "None listed"}. ${turf.description}`
   );
   return "Here is real turf inventory data that may be relevant to the user's question:\n" + lines.join("\n");

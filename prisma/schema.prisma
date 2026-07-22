@@ -40,7 +40,7 @@ model Turf {
   address             String
   city                String
   area                String?
-  sportType           String
+  sportTypes          String[]
   pricePerHour        Decimal   @db.Decimal(10, 2)
   openTimeMinutes     Int
   closeTimeMinutes    Int

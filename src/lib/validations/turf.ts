@@ -7,7 +7,7 @@ export const turfSchema = z.object({
   contactNumber: z.string().min(7, "Enter a valid contact number").max(20, "Contact number is too long"),
   city: z.string().min(1, "City is required"),
   area: z.string().optional(),
-  sportType: z.string().min(1, "Sport type is required"),
+  sportTypes: z.array(z.string().min(1)).min(1, "Select at least one sport type"),
   pricePerHour: z.coerce.number().positive("Price must be greater than 0"),
   openTimeMinutes: z.coerce.number().int().min(0).max(1439),
   closeTimeMinutes: z.coerce.number().int().min(1).max(1440),
