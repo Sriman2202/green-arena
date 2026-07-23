@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { addDays, format, isSameDay } from "date-fns";
 import Link from "next/link";
-import { LoaderCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,10 +13,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TimePicker } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { createBooking, type BookingFormState } from "@/actions/bookings";
 import { CURRENCY_SYMBOL, MAX_BOOKING_HOURS } from "@/lib/constants";
-import { minutesToLabel } from "@/lib/slots";
+import { minutesToLabel, minutesToTimeValue, timeValueToMinutes } from "@/lib/slots";
 
 interface SlotInfo {
   startMinutes: number;
@@ -30,13 +31,26 @@ interface SlotsForDate {
   slots: SlotInfo[];
 }
 
+interface ConfirmTarget {
+  startMinutes: number;
+  endMinutes: number;
+}
+
 const DAYS_AHEAD = 7;
 const initialState: BookingFormState = {};
+
+function hasConflict(slots: SlotInfo[], startMinutes: number, endMinutes: number): boolean {
+  return slots.some(
+    (slot) => !slot.available && startMinutes < slot.endMinutes && endMinutes > slot.startMinutes
+  );
+}
 
 export function SlotPicker({
   turfId,
   turfName,
   pricePerHour,
+  openTimeMinutes,
+  closeTimeMinutes,
   slotDurationMinutes,
   isAuthenticated,
   loginUrl,
@@ -45,6 +59,8 @@ export function SlotPicker({
   turfId: string;
   turfName: string;
   pricePerHour: number;
+  openTimeMinutes: number;
+  closeTimeMinutes: number;
   slotDurationMinutes: number;
   isAuthenticated: boolean;
   loginUrl: string;
@@ -58,39 +74,34 @@ export function SlotPicker({
 
   const [date, setDate] = useState<Date>(days[0]);
   const [slotsForDate, setSlotsForDate] = useState<SlotsForDate | null>(null);
-  const [selectedStart, setSelectedStart] = useState<number | null>(null);
-  const [selectedEnd, setSelectedEnd] = useState<number | null>(null);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [rangeDefaultsKey, setRangeDefaultsKey] = useState("");
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createBooking, initialState);
 
   const dateStr = format(date, "yyyy-MM-dd");
+  const isToday = isSameDay(date, new Date());
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
   // Derived (not stored) so we never need to setState synchronously in the effect below.
   const loadingSlots = slotsForDate?.date !== dateStr;
   const slots = loadingSlots ? [] : slotsForDate.slots;
 
-  const startIndex = slots.findIndex((slot) => slot.startMinutes === selectedStart);
-  const endOptions = useMemo(() => {
-    if (startIndex === -1) return [];
-    const options: { endMinutes: number; hours: number }[] = [];
-    for (let idx = startIndex; idx < slots.length; idx++) {
-      const slot = slots[idx];
-      if (!slot.available) break;
-      if (idx > startIndex && slot.startMinutes !== slots[idx - 1].endMinutes) break;
-      const duration = slot.endMinutes - (selectedStart as number);
-      if (duration > MAX_BOOKING_HOURS * 60) break;
-      options.push({ endMinutes: slot.endMinutes, hours: duration / 60 });
-    }
-    return options;
-  }, [slots, startIndex, selectedStart]);
+  if (dateStr !== rangeDefaultsKey) {
+    const start = isToday ? Math.max(openTimeMinutes, nowMinutes) : openTimeMinutes;
+    const end = Math.min(start + slotDurationMinutes, closeTimeMinutes);
+    setRangeDefaultsKey(dateStr);
+    setRangeStart(minutesToTimeValue(start));
+    setRangeEnd(minutesToTimeValue(Math.max(end, start)));
+  }
 
-  const selectionValid =
-    selectedStart != null &&
-    selectedEnd != null &&
-    endOptions.some((option) => option.endMinutes === selectedEnd);
-  const totalPrice =
-    selectedStart != null && selectedEnd != null
-      ? pricePerHour * ((selectedEnd - selectedStart) / 60)
+  const liveStart = timeValueToMinutes(rangeStart);
+  const liveEnd = timeValueToMinutes(rangeEnd);
+  const livePrice =
+    liveStart != null && liveEnd != null && liveEnd > liveStart
+      ? pricePerHour * ((liveEnd - liveStart) / 60)
       : null;
 
   useEffect(() => {
@@ -105,6 +116,41 @@ export function SlotPicker({
     };
   }, [turfId, dateStr]);
 
+  function handleBookClick() {
+    const startMinutes = timeValueToMinutes(rangeStart);
+    const endMinutes = timeValueToMinutes(rangeEnd);
+    if (startMinutes == null || endMinutes == null) {
+      toast.error("Enter a valid start and end time.");
+      return;
+    }
+    if (endMinutes <= startMinutes) {
+      toast.error("End time must be after start time.");
+      return;
+    }
+    if ((endMinutes - startMinutes) % slotDurationMinutes !== 0) {
+      toast.error(`Duration must be a multiple of ${slotDurationMinutes} minutes.`);
+      return;
+    }
+    if (endMinutes - startMinutes > MAX_BOOKING_HOURS * 60) {
+      toast.error(`You can book at most ${MAX_BOOKING_HOURS} hours at a time.`);
+      return;
+    }
+    if (startMinutes < openTimeMinutes || endMinutes > closeTimeMinutes) {
+      toast.error("Selected time is outside turf hours.");
+      return;
+    }
+    if (isToday && startMinutes < nowMinutes) {
+      toast.error("This time has already passed.");
+      return;
+    }
+    if (!loadingSlots && hasConflict(slots, startMinutes, endMinutes)) {
+      toast.error("This time overlaps an unavailable slot. Please choose another.");
+      return;
+    }
+    setConfirmTarget({ startMinutes, endMinutes });
+    setConfirmOpen(true);
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
@@ -116,11 +162,7 @@ export function SlotPicker({
               <button
                 key={day.toISOString()}
                 type="button"
-                onClick={() => {
-                  setDate(day);
-                  setSelectedStart(null);
-                  setSelectedEnd(null);
-                }}
+                onClick={() => setDate(day)}
                 className={cn(
                   "flex flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2.5 text-center transition-colors",
                   active
@@ -142,76 +184,39 @@ export function SlotPicker({
           })}
         </div>
 
-        <h3 className="mb-3 mt-5 font-heading text-lg font-semibold">Available slots</h3>
-        {loadingSlots ? (
-          <div className="flex h-24 items-center justify-center text-muted-foreground">
-            <LoaderCircle className="animate-spin" />
+        <h3 className="mb-3 mt-5 font-heading text-lg font-semibold">Select time</h3>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="slot-start" className="text-xs font-medium text-muted-foreground">
+              Start time
+            </label>
+            <TimePicker id="slot-start" value={rangeStart} onChange={setRangeStart} className="h-10" />
           </div>
-        ) : slots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No slots configured for this turf.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-            {slots.map((slot) => (
-              <button
-                key={slot.startMinutes}
-                type="button"
-                disabled={!slot.available}
-                title={slot.label}
-                onClick={() => {
-                  setSelectedStart(slot.startMinutes);
-                  setSelectedEnd(slot.endMinutes);
-                }}
-                className={cn(
-                  "rounded-xl border px-2 py-2.5 text-center text-xs font-semibold transition-colors",
-                  selectedStart === slot.startMinutes
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : slot.available
-                      ? "cursor-pointer border-border text-foreground hover:border-primary/50 hover:bg-muted"
-                      : "cursor-not-allowed border-border/50 text-muted-foreground/50"
-                )}
-              >
-                {minutesToLabel(slot.startMinutes)}
-              </button>
-            ))}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="slot-end" className="text-xs font-medium text-muted-foreground">
+              End time
+            </label>
+            <TimePicker id="slot-end" value={rangeEnd} onChange={setRangeEnd} className="h-10" />
           </div>
-        )}
-
-        {selectedStart != null && endOptions.length > 0 && (
-          <>
-            <h3 className="mb-3 mt-5 font-heading text-lg font-semibold">Book until</h3>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-              {endOptions.map((option) => (
-                <button
-                  key={option.endMinutes}
-                  type="button"
-                  onClick={() => setSelectedEnd(option.endMinutes)}
-                  className={cn(
-                    "rounded-xl border px-2 py-2.5 text-center text-xs font-semibold transition-colors",
-                    selectedEnd === option.endMinutes
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "cursor-pointer border-border text-foreground hover:border-primary/50 hover:bg-muted"
-                  )}
-                >
-                  {minutesToLabel(option.endMinutes)} ({option.hours} hr{option.hours > 1 ? "s" : ""})
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Turf hours: {minutesToLabel(openTimeMinutes)} – {minutesToLabel(closeTimeMinutes)} · Max{" "}
+          {MAX_BOOKING_HOURS} hours per booking
+        </p>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs text-muted-foreground">Total · Pay at venue</p>
             <p className="font-heading text-xl font-bold">
-              {selectionValid && totalPrice != null ? `${CURRENCY_SYMBOL}${totalPrice}` : "—"}
+              {livePrice != null ? `${CURRENCY_SYMBOL}${livePrice}` : "—"}
             </p>
           </div>
 
           {isAuthenticated ? (
             <Button
               type="button"
-              disabled={!selectionValid}
-              onClick={() => setConfirmOpen(true)}
+              disabled={livePrice == null}
+              onClick={handleBookClick}
               className="w-full sm:w-auto sm:min-w-48"
             >
               Book Slot
@@ -244,8 +249,8 @@ export function SlotPicker({
             <dd className="text-right font-medium">{format(date, "EEEE, MMMM d, yyyy")}</dd>
             <dt className="text-muted-foreground">Time</dt>
             <dd className="text-right font-medium">
-              {selectedStart != null && selectedEnd != null
-                ? `${minutesToLabel(selectedStart)} – ${minutesToLabel(selectedEnd)}`
+              {confirmTarget
+                ? `${minutesToLabel(confirmTarget.startMinutes)} – ${minutesToLabel(confirmTarget.endMinutes)}`
                 : ""}
             </dd>
             <dt className="text-muted-foreground">Payment</dt>
@@ -253,7 +258,7 @@ export function SlotPicker({
             <dt className="text-muted-foreground">Total</dt>
             <dd className="text-right font-semibold">
               {CURRENCY_SYMBOL}
-              {totalPrice ?? 0}
+              {confirmTarget ? pricePerHour * ((confirmTarget.endMinutes - confirmTarget.startMinutes) / 60) : 0}
             </dd>
           </dl>
 
@@ -266,8 +271,8 @@ export function SlotPicker({
           <form action={formAction}>
             <input type="hidden" name="turfId" value={turfId} />
             <input type="hidden" name="date" value={dateStr} />
-            <input type="hidden" name="startMinutes" value={selectedStart ?? ""} />
-            <input type="hidden" name="endMinutes" value={selectedEnd ?? ""} />
+            <input type="hidden" name="startMinutes" value={confirmTarget?.startMinutes ?? ""} />
+            <input type="hidden" name="endMinutes" value={confirmTarget?.endMinutes ?? ""} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
                 Cancel

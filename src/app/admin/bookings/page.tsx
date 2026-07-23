@@ -11,12 +11,67 @@ import {
 } from "@/components/ui/table";
 import { BookingStatusSelect } from "@/components/admin/booking-status-select";
 import { BlockSlotForm } from "@/components/admin/block-slot-form";
+import { DateFilterPicker } from "@/components/admin/date-filter-picker";
 import { UnblockSlotButton } from "@/components/admin/unblock-slot-button";
-import { minutesToLabel } from "@/lib/slots";
+import { minutesToLabel, slotStartDate } from "@/lib/slots";
 import { CURRENCY_SYMBOL, formatBookingReference } from "@/lib/constants";
 import { requireAdmin } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import type { BookingStatus, Prisma } from "@/generated/prisma/client";
+
+interface MergedBlockedSlot {
+  ids: string[];
+  turfName: string;
+  date: string;
+  startMinutes: number;
+  endMinutes: number;
+  reason: string | null;
+  isPast: boolean;
+}
+
+function mergeBlockedSlots(
+  slots: { id: string; date: string; turfId: string; turf: { name: string }; startMinutes: number; endMinutes: number; reason: string | null }[]
+): MergedBlockedSlot[] {
+  const groups = new Map<string, typeof slots>();
+  for (const slot of slots) {
+    const key = `${slot.turfId}|${slot.date}`;
+    const group = groups.get(key);
+    if (group) group.push(slot);
+    else groups.set(key, [slot]);
+  }
+
+  const now = new Date();
+  const merged: MergedBlockedSlot[] = [];
+  for (const groupSlots of groups.values()) {
+    const sorted = [...groupSlots].sort((a, b) => a.startMinutes - b.startMinutes);
+    let current: MergedBlockedSlot | null = null;
+    for (const slot of sorted) {
+      if (current && current.endMinutes === slot.startMinutes && current.reason === (slot.reason ?? null)) {
+        current.endMinutes = slot.endMinutes;
+        current.ids.push(slot.id);
+      } else {
+        if (current) merged.push(current);
+        current = {
+          ids: [slot.id],
+          turfName: slot.turf.name,
+          date: slot.date,
+          startMinutes: slot.startMinutes,
+          endMinutes: slot.endMinutes,
+          reason: slot.reason,
+          isPast: false,
+        };
+      }
+    }
+    if (current) merged.push(current);
+  }
+
+  for (const group of merged) {
+    group.isPast = slotStartDate(group.date, group.endMinutes) <= now;
+  }
+
+  merged.sort((a, b) => (a.date === b.date ? b.startMinutes - a.startMinutes : b.date.localeCompare(a.date)));
+  return merged;
+}
 
 export default async function AdminBookingsPage({
   searchParams,
@@ -64,6 +119,8 @@ export default async function AdminBookingsPage({
     take: 200,
   });
 
+  const mergedBlockedSlots = mergeBlockedSlots(blockedSlots);
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Bookings</h2>
@@ -72,18 +129,7 @@ export default async function AdminBookingsPage({
         method="get"
         className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4"
       >
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="date" className="text-xs font-medium text-muted-foreground">
-            Date
-          </label>
-          <input
-            id="date"
-            name="date"
-            type="date"
-            defaultValue={date ?? ""}
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-          />
-        </div>
+        <DateFilterPicker name="date" label="Date" defaultValue={date} />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="status" className="text-xs font-medium text-muted-foreground">
             Status
@@ -174,20 +220,20 @@ export default async function AdminBookingsPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {blockedSlots.map((slot) => (
-              <TableRow key={slot.id}>
-                <TableCell className="font-medium">{slot.turf.name}</TableCell>
+            {mergedBlockedSlots.map((slot) => (
+              <TableRow key={slot.ids.join("-")}>
+                <TableCell className="font-medium">{slot.turfName}</TableCell>
                 <TableCell>{slot.date}</TableCell>
                 <TableCell>
                   {minutesToLabel(slot.startMinutes)} – {minutesToLabel(slot.endMinutes)}
                 </TableCell>
                 <TableCell>{slot.reason ?? "—"}</TableCell>
                 <TableCell>
-                  <UnblockSlotButton id={slot.id} />
+                  {!slot.isPast && <UnblockSlotButton ids={slot.ids} />}
                 </TableCell>
               </TableRow>
             ))}
-            {blockedSlots.length === 0 && (
+            {mergedBlockedSlots.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No blocked slots match these filters.

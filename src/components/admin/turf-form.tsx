@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { TimePicker } from "@/components/ui/time-picker";
 import {
   Field,
   FieldGroup,
@@ -15,6 +16,7 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { CITIES, SPORT_TYPES } from "@/lib/constants";
+import { minutesToTimeValue, timeValueToMinutes } from "@/lib/slots";
 import { cn } from "@/lib/utils";
 import type { TurfFormState } from "@/actions/turfs";
 
@@ -42,20 +44,6 @@ const initialState: TurfFormState = {};
 
 function errorList(errors?: string[]) {
   return errors?.map((message) => ({ message }));
-}
-
-function minutesToTimeValue(minutes?: number): string {
-  if (minutes == null) return "";
-  const clamped = Math.min(1439, Math.max(0, minutes));
-  const h = Math.floor(clamped / 60).toString().padStart(2, "0");
-  const m = (clamped % 60).toString().padStart(2, "0");
-  return `${h}:${m}`;
-}
-
-function timeValueToMinutes(value: string): number | "" {
-  if (!value) return "";
-  const [h, m] = value.split(":").map(Number);
-  return h * 60 + m;
 }
 
 function RequiredMark() {
@@ -284,14 +272,12 @@ export function TurfForm({
               Opens at
               <RequiredMark />
             </FieldLabel>
-            <Input
-              id="openTime"
-              type="time"
-              value={openTime}
-              onChange={(e) => setOpenTime(e.target.value)}
-              required
+            <TimePicker id="openTime" value={openTime} onChange={setOpenTime} className="w-full" />
+            <input
+              type="hidden"
+              name="openTimeMinutes"
+              value={timeValueToMinutes(openTime) ?? ""}
             />
-            <input type="hidden" name="openTimeMinutes" value={timeValueToMinutes(openTime)} />
             <FieldError errors={errorList(state.fieldErrors?.openTimeMinutes)} />
           </Field>
           <Field data-invalid={!!state.fieldErrors?.closeTimeMinutes}>
@@ -299,14 +285,12 @@ export function TurfForm({
               Closes at
               <RequiredMark />
             </FieldLabel>
-            <Input
-              id="closeTime"
-              type="time"
-              value={closeTime}
-              onChange={(e) => setCloseTime(e.target.value)}
-              required
+            <TimePicker id="closeTime" value={closeTime} onChange={setCloseTime} className="w-full" />
+            <input
+              type="hidden"
+              name="closeTimeMinutes"
+              value={timeValueToMinutes(closeTime) ?? ""}
             />
-            <input type="hidden" name="closeTimeMinutes" value={timeValueToMinutes(closeTime)} />
             <FieldError errors={errorList(state.fieldErrors?.closeTimeMinutes)} />
           </Field>
         </div>

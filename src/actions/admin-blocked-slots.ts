@@ -4,54 +4,14 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { blockSlotSchema } from "@/lib/validations/blocked-slot";
-import { generateSlotStarts } from "@/lib/slots";
+import { todayDateString } from "@/lib/slots";
 
 export interface BlockSlotFormState {
   error?: string;
 }
 
-export interface AdminDaySlot {
-  startMinutes: number;
-  endMinutes: number;
-  status: "open" | "booked" | "blocked";
-  blockedSlotId?: string;
-}
-
-export async function getAdminDaySlots(turfId: string, date: string): Promise<AdminDaySlot[]> {
-  const user = await requireAdmin();
-
-  const turf = await prisma.turf.findUnique({ where: { id: turfId } });
-  if (!turf) return [];
-  if (user.role === "ADMIN" && turf.ownerId !== user.id) return [];
-
-  const [bookings, blockedSlots] = await Promise.all([
-    prisma.booking.findMany({
-      where: { turfId, date, status: "CONFIRMED" },
-      select: { startMinutes: true, endMinutes: true },
-    }),
-    prisma.blockedSlot.findMany({
-      where: { turfId, date },
-      select: { id: true, startMinutes: true, endMinutes: true },
-    }),
-  ]);
-
-  const overlapping = <T extends { startMinutes: number; endMinutes: number }>(
-    ranges: T[],
-    startMinutes: number,
-    endMinutes: number
-  ) => ranges.find((r) => startMinutes < r.endMinutes && endMinutes > r.startMinutes);
-
-  return generateSlotStarts(turf).map((startMinutes) => {
-    const endMinutes = startMinutes + turf.slotDurationMinutes;
-    if (overlapping(bookings, startMinutes, endMinutes)) {
-      return { startMinutes, endMinutes, status: "booked" };
-    }
-    const blocked = overlapping(blockedSlots, startMinutes, endMinutes);
-    if (blocked) {
-      return { startMinutes, endMinutes, status: "blocked", blockedSlotId: blocked.id };
-    }
-    return { startMinutes, endMinutes, status: "open" };
-  });
+function currentMinutesOfDay(now: Date = new Date()): number {
+  return now.getHours() * 60 + now.getMinutes();
 }
 
 export async function blockSlot(
@@ -73,6 +33,14 @@ export async function blockSlot(
   const { turfId, date, startMinutes, endMinutes, reason } = parsed.data;
   if (endMinutes <= startMinutes) {
     return { error: "End time must be after start time." };
+  }
+
+  const todayStr = todayDateString();
+  if (date < todayStr) {
+    return { error: "Cannot block a past date." };
+  }
+  if (date === todayStr && startMinutes < currentMinutesOfDay()) {
+    return { error: "Cannot block a time that has already passed." };
   }
 
   const turf = await prisma.turf.findUnique({ where: { id: turfId } });
@@ -99,21 +67,36 @@ export async function blockSlot(
     return { error: "This time range has an existing booking." };
   }
 
+  const overlappingBlocked = await prisma.blockedSlot.findFirst({
+    where: {
+      turfId,
+      date,
+      startMinutes: { lt: endMinutes },
+      endMinutes: { gt: startMinutes },
+    },
+  });
+  if (overlappingBlocked) {
+    return { error: "This time range overlaps an already blocked slot." };
+  }
+
   await prisma.blockedSlot.create({ data: { turfId, date, startMinutes, endMinutes, reason } });
   revalidatePath("/admin/bookings");
   return {};
 }
 
-export async function unblockSlot(id: string): Promise<{ error?: string }> {
+export async function unblockSlots(ids: string[]): Promise<{ error?: string }> {
   const user = await requireAdmin();
-  const blockedSlot = await prisma.blockedSlot.findUnique({ where: { id }, include: { turf: true } });
-  if (!blockedSlot) {
+  const blockedSlots = await prisma.blockedSlot.findMany({
+    where: { id: { in: ids } },
+    include: { turf: true },
+  });
+  if (blockedSlots.length !== ids.length) {
     return { error: "Not found." };
   }
-  if (user.role === "ADMIN" && blockedSlot.turf.ownerId !== user.id) {
+  if (user.role === "ADMIN" && blockedSlots.some((slot) => slot.turf.ownerId !== user.id)) {
     return { error: "You don't have access to this turf." };
   }
-  await prisma.blockedSlot.delete({ where: { id } });
+  await prisma.blockedSlot.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/admin/bookings");
   return {};
 }

@@ -10,21 +10,13 @@ export default async function TurfsPage({
   searchParams: Promise<{
     city?: string;
     sport?: string;
-    minPrice?: string;
-    maxPrice?: string;
   }>;
 }) {
-  const { city, sport, minPrice, maxPrice } = await searchParams;
+  const { city, sport } = await searchParams;
 
   const where: Prisma.TurfWhereInput = { isActive: true };
   if (city) where.city = city;
   if (sport) where.sportTypes = { has: sport };
-  if (minPrice || maxPrice) {
-    where.pricePerHour = {
-      ...(minPrice ? { gte: Number(minPrice) } : {}),
-      ...(maxPrice ? { lte: Number(maxPrice) } : {}),
-    };
-  }
 
   const turfs = await prisma.turf.findMany({
     where,
@@ -51,7 +43,7 @@ export default async function TurfsPage({
           Browse turfs near you and book a slot in seconds.
         </p>
       </div>
-      <TurfFilters filters={{ city, sport, minPrice, maxPrice }} />
+      <TurfFilters filters={{ city, sport }} />
       <TurfListClient turfs={turfListItems} />
     </div>
   );
