@@ -24,12 +24,15 @@ export function TimePicker({
   onChange,
   className,
   disabled,
+  minMinutes,
 }: {
   id?: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
+  /** Minutes-since-midnight before which hours/minutes are disabled (e.g. the current time). */
+  minMinutes?: number;
 }) {
   const [open, setOpen] = useState(false);
   const minuteListRef = useRef<HTMLDivElement>(null);
@@ -37,6 +40,16 @@ export function TimePicker({
 
   const parsed = parseValue(value);
   const [hour, minute] = parsed ?? [null, null];
+
+  const minHour = minMinutes != null ? Math.floor(minMinutes / 60) : null;
+  const minMinute = minMinutes != null ? minMinutes % 60 : null;
+  const isHourDisabled = (h: number) => minHour != null && h < minHour;
+  const isMinuteDisabled = (m: number) => {
+    if (minHour == null || minMinute == null || hour == null) return false;
+    if (hour > minHour) return false;
+    if (hour < minHour) return true;
+    return m < minMinute;
+  };
 
   // The hour column's scroll position is handled by initialFocus (focusing
   // the selected hour button scrolls it into view natively). Doing it manually
@@ -69,41 +82,53 @@ export function TimePicker({
       <PopoverContent className="w-auto p-2" initialFocus={selectedHourRef}>
         <div className="flex gap-1">
           <div className="flex max-h-56 w-14 flex-col gap-0.5 overflow-y-auto">
-            {HOURS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                ref={h === hour ? selectedHourRef : undefined}
-                data-selected={h === hour}
-                onClick={() => onChange(`${pad(h)}:${pad(minute ?? 0)}`)}
-                className={cn(
-                  "rounded-md px-2 py-1 text-center text-sm transition-colors",
-                  h === hour
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-muted"
-                )}
-              >
-                {pad(h)}
-              </button>
-            ))}
+            {HOURS.map((h) => {
+              const hourDisabled = isHourDisabled(h);
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  ref={h === hour ? selectedHourRef : undefined}
+                  data-selected={h === hour}
+                  disabled={hourDisabled}
+                  onClick={() => onChange(`${pad(h)}:${pad(minute ?? 0)}`)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-center text-sm transition-colors",
+                    hourDisabled
+                      ? "cursor-not-allowed text-muted-foreground/40"
+                      : h === hour
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground hover:bg-muted"
+                  )}
+                >
+                  {pad(h)}
+                </button>
+              );
+            })}
           </div>
           <div ref={minuteListRef} className="flex max-h-56 w-14 flex-col gap-0.5 overflow-y-auto">
-            {MINUTES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                data-selected={m === minute}
-                onClick={() => onChange(`${pad(hour ?? 0)}:${pad(m)}`)}
-                className={cn(
-                  "rounded-md px-2 py-1 text-center text-sm transition-colors",
-                  m === minute
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-muted"
-                )}
-              >
-                {pad(m)}
-              </button>
-            ))}
+            {MINUTES.map((m) => {
+              const minuteDisabled = isMinuteDisabled(m);
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  data-selected={m === minute}
+                  disabled={minuteDisabled}
+                  onClick={() => onChange(`${pad(hour ?? 0)}:${pad(m)}`)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-center text-sm transition-colors",
+                    minuteDisabled
+                      ? "cursor-not-allowed text-muted-foreground/40"
+                      : m === minute
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground hover:bg-muted"
+                  )}
+                >
+                  {pad(m)}
+                </button>
+              );
+            })}
           </div>
         </div>
       </PopoverContent>

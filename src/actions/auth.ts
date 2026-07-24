@@ -18,6 +18,7 @@ export async function signUp(
   const parsed = signUpSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
+    phone: formData.get("phone"),
     password: formData.get("password"),
   });
 
@@ -25,7 +26,7 @@ export async function signUp(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, phone, password } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -33,7 +34,7 @@ export async function signUp(
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.user.create({ data: { name, email, passwordHash } });
+  await prisma.user.create({ data: { name, email, phone, passwordHash } });
 
   try {
     await signIn("credentials", {

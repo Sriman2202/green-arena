@@ -82,6 +82,7 @@ export default async function AdminTurfsPage({
               <TableHead>Price/hr</TableHead>
               <TableHead>Status</TableHead>
               {user.role === "SUPER_ADMIN" && <TableHead>Owner</TableHead>}
+              {user.role === "SUPER_ADMIN" && <TableHead>Contact</TableHead>}
               {user.role === "SUPER_ADMIN" && <TableHead>Commission</TableHead>}
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -105,6 +106,9 @@ export default async function AdminTurfsPage({
                   <TableCell>{turf.owner ? turf.owner.name : "Unassigned"}</TableCell>
                 )}
                 {user.role === "SUPER_ADMIN" && (
+                  <TableCell>{turf.contactNumber ?? "—"}</TableCell>
+                )}
+                {user.role === "SUPER_ADMIN" && (
                   <TableCell>{Number(turf.commissionPercent)}%</TableCell>
                 )}
                 <TableCell>
@@ -126,7 +130,7 @@ export default async function AdminTurfsPage({
             {turfs.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={user.role === "SUPER_ADMIN" ? 8 : 6}
+                  colSpan={user.role === "SUPER_ADMIN" ? 9 : 6}
                   className="text-center text-muted-foreground"
                 >
                   {q ? `No turfs match "${q}".` : "No turfs yet."}

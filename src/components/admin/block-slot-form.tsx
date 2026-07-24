@@ -192,7 +192,12 @@ export function BlockSlotForm({ turfs }: { turfs: TurfOption[] }) {
               <label htmlFor="range-start" className="text-xs font-medium text-muted-foreground">
                 Start time
               </label>
-              <TimePicker id="range-start" value={rangeStart} onChange={setRangeStart} />
+              <TimePicker
+                id="range-start"
+                value={rangeStart}
+                onChange={setRangeStart}
+                minMinutes={isToday ? nowMinutes : undefined}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="range-end" className="text-xs font-medium text-muted-foreground">

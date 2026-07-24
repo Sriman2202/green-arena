@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { addDays, format, isSameDay } from "date-fns";
 import Link from "next/link";
+import { Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,19 +17,17 @@ import {
 import { TimePicker } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { createBooking, type BookingFormState } from "@/actions/bookings";
-import { CURRENCY_SYMBOL, MAX_BOOKING_HOURS } from "@/lib/constants";
+import { BOOKING_STEP_MINUTES, CURRENCY_SYMBOL, MIN_BOOKING_MINUTES } from "@/lib/constants";
 import { minutesToLabel, minutesToTimeValue, timeValueToMinutes } from "@/lib/slots";
 
-interface SlotInfo {
+interface MinuteRange {
   startMinutes: number;
   endMinutes: number;
-  label: string;
-  available: boolean;
 }
 
-interface SlotsForDate {
+interface UnavailableForDate {
   date: string;
-  slots: SlotInfo[];
+  ranges: MinuteRange[];
 }
 
 interface ConfirmTarget {
@@ -39,10 +38,31 @@ interface ConfirmTarget {
 const DAYS_AHEAD = 7;
 const initialState: BookingFormState = {};
 
-function hasConflict(slots: SlotInfo[], startMinutes: number, endMinutes: number): boolean {
-  return slots.some(
-    (slot) => !slot.available && startMinutes < slot.endMinutes && endMinutes > slot.startMinutes
-  );
+function hasConflict(ranges: MinuteRange[], startMinutes: number, endMinutes: number): boolean {
+  return ranges.some((r) => startMinutes < r.endMinutes && endMinutes > r.startMinutes);
+}
+
+function formatDuration(minutes: number): string {
+  const hours = minutes / 60;
+  const label = Number.isInteger(hours) ? `${hours}` : hours.toFixed(1);
+  return `${label} hr${hours === 1 ? "" : "s"}`;
+}
+
+function computeDurationOptions(
+  startMinutes: number,
+  closeTimeMinutes: number,
+  unavailable: MinuteRange[]
+): number[] {
+  const options: number[] = [];
+  for (
+    let duration = MIN_BOOKING_MINUTES;
+    startMinutes + duration <= closeTimeMinutes;
+    duration += BOOKING_STEP_MINUTES
+  ) {
+    if (hasConflict(unavailable, startMinutes, startMinutes + duration)) break;
+    options.push(duration);
+  }
+  return options;
 }
 
 export function SlotPicker({
@@ -51,7 +71,6 @@ export function SlotPicker({
   pricePerHour,
   openTimeMinutes,
   closeTimeMinutes,
-  slotDurationMinutes,
   isAuthenticated,
   loginUrl,
   contactNumber,
@@ -61,7 +80,6 @@ export function SlotPicker({
   pricePerHour: number;
   openTimeMinutes: number;
   closeTimeMinutes: number;
-  slotDurationMinutes: number;
   isAuthenticated: boolean;
   loginUrl: string;
   contactNumber?: string | null;
@@ -73,10 +91,11 @@ export function SlotPicker({
   }, []);
 
   const [date, setDate] = useState<Date>(days[0]);
-  const [slotsForDate, setSlotsForDate] = useState<SlotsForDate | null>(null);
+  const [unavailableForDate, setUnavailableForDate] = useState<UnavailableForDate | null>(null);
   const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
-  const [rangeDefaultsKey, setRangeDefaultsKey] = useState("");
+  const [rangeStartDefaultsKey, setRangeStartDefaultsKey] = useState("");
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+  const [durationResetKey, setDurationResetKey] = useState("");
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createBooking, initialState);
@@ -86,55 +105,68 @@ export function SlotPicker({
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
   // Derived (not stored) so we never need to setState synchronously in the effect below.
-  const loadingSlots = slotsForDate?.date !== dateStr;
-  const slots = loadingSlots ? [] : slotsForDate.slots;
+  const loadingSlots = unavailableForDate?.date !== dateStr;
+  const unavailable = loadingSlots ? [] : unavailableForDate.ranges;
 
-  if (dateStr !== rangeDefaultsKey) {
+  if (dateStr !== rangeStartDefaultsKey) {
     const start = isToday ? Math.max(openTimeMinutes, nowMinutes) : openTimeMinutes;
-    const end = Math.min(start + slotDurationMinutes, closeTimeMinutes);
-    setRangeDefaultsKey(dateStr);
+    setRangeStartDefaultsKey(dateStr);
     setRangeStart(minutesToTimeValue(start));
-    setRangeEnd(minutesToTimeValue(Math.max(end, start)));
   }
 
-  const liveStart = timeValueToMinutes(rangeStart);
-  const liveEnd = timeValueToMinutes(rangeEnd);
+  const startMinutes = timeValueToMinutes(rangeStart);
+  const durationOptions =
+    startMinutes != null && !loadingSlots
+      ? computeDurationOptions(startMinutes, closeTimeMinutes, unavailable)
+      : [];
+
+  const durationKey = `${dateStr}|${rangeStart}`;
+  if (durationKey !== durationResetKey) {
+    setDurationResetKey(durationKey);
+    setSelectedDuration(null);
+  } else if (selectedDuration == null && durationOptions.length > 0) {
+    setSelectedDuration(durationOptions[0]);
+  }
+
+  const durationIndex = selectedDuration != null ? durationOptions.indexOf(selectedDuration) : -1;
+  const canDecreaseDuration = durationIndex > 0;
+  const canIncreaseDuration = durationIndex !== -1 && durationIndex < durationOptions.length - 1;
+
   const livePrice =
-    liveStart != null && liveEnd != null && liveEnd > liveStart
-      ? pricePerHour * ((liveEnd - liveStart) / 60)
-      : null;
+    selectedDuration != null ? pricePerHour * (selectedDuration / 60) : null;
 
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/turfs/${turfId}/availability?date=${dateStr}`)
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setSlotsForDate({ date: dateStr, slots: data.slots ?? [] });
+        if (!cancelled) setUnavailableForDate({ date: dateStr, ranges: data.unavailable ?? [] });
       });
     return () => {
       cancelled = true;
     };
   }, [turfId, dateStr]);
 
+  function decreaseDuration() {
+    if (durationIndex > 0) setSelectedDuration(durationOptions[durationIndex - 1]);
+  }
+
+  function increaseDuration() {
+    if (durationIndex !== -1 && durationIndex < durationOptions.length - 1) {
+      setSelectedDuration(durationOptions[durationIndex + 1]);
+    }
+  }
+
   function handleBookClick() {
-    const startMinutes = timeValueToMinutes(rangeStart);
-    const endMinutes = timeValueToMinutes(rangeEnd);
-    if (startMinutes == null || endMinutes == null) {
-      toast.error("Enter a valid start and end time.");
+    if (startMinutes == null) {
+      toast.error("Enter a valid start time.");
       return;
     }
-    if (endMinutes <= startMinutes) {
-      toast.error("End time must be after start time.");
+    if (selectedDuration == null) {
+      toast.error("Select a duration.");
       return;
     }
-    if ((endMinutes - startMinutes) % slotDurationMinutes !== 0) {
-      toast.error(`Duration must be a multiple of ${slotDurationMinutes} minutes.`);
-      return;
-    }
-    if (endMinutes - startMinutes > MAX_BOOKING_HOURS * 60) {
-      toast.error(`You can book at most ${MAX_BOOKING_HOURS} hours at a time.`);
-      return;
-    }
+    const endMinutes = startMinutes + selectedDuration;
     if (startMinutes < openTimeMinutes || endMinutes > closeTimeMinutes) {
       toast.error("Selected time is outside turf hours.");
       return;
@@ -143,7 +175,7 @@ export function SlotPicker({
       toast.error("This time has already passed.");
       return;
     }
-    if (!loadingSlots && hasConflict(slots, startMinutes, endMinutes)) {
+    if (!loadingSlots && hasConflict(unavailable, startMinutes, endMinutes)) {
       toast.error("This time overlaps an unavailable slot. Please choose another.");
       return;
     }
@@ -185,24 +217,54 @@ export function SlotPicker({
         </div>
 
         <h3 className="mb-3 mt-5 font-heading text-lg font-semibold">Select time</h3>
-        <div className="flex flex-wrap gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="slot-start" className="text-xs font-medium text-muted-foreground">
-              Start time
-            </label>
-            <TimePicker id="slot-start" value={rangeStart} onChange={setRangeStart} className="h-10" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="slot-end" className="text-xs font-medium text-muted-foreground">
-              End time
-            </label>
-            <TimePicker id="slot-end" value={rangeEnd} onChange={setRangeEnd} className="h-10" />
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="slot-start" className="text-xs font-medium text-muted-foreground">
+            Start time
+          </label>
+          <TimePicker
+            id="slot-start"
+            value={rangeStart}
+            onChange={setRangeStart}
+            className="h-10 w-32"
+            minMinutes={isToday ? nowMinutes : undefined}
+          />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Turf hours: {minutesToLabel(openTimeMinutes)} – {minutesToLabel(closeTimeMinutes)} · Max{" "}
-          {MAX_BOOKING_HOURS} hours per booking
+          Turf hours: {minutesToLabel(openTimeMinutes)} – {minutesToLabel(closeTimeMinutes)}
         </p>
+
+        <h3 className="mb-3 mt-5 font-heading text-lg font-semibold">Duration</h3>
+        {startMinutes == null ? (
+          <p className="text-sm text-muted-foreground">Enter a start time to see durations.</p>
+        ) : loadingSlots ? (
+          <p className="text-sm text-muted-foreground">Loading availability...</p>
+        ) : durationOptions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No available duration from this start time.</p>
+        ) : (
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              disabled={!canDecreaseDuration}
+              onClick={decreaseDuration}
+              aria-label="Decrease duration"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="min-w-16 text-center text-sm font-semibold">
+              {selectedDuration != null ? formatDuration(selectedDuration) : "—"}
+            </span>
+            <button
+              type="button"
+              disabled={!canIncreaseDuration}
+              onClick={increaseDuration}
+              aria-label="Increase duration"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

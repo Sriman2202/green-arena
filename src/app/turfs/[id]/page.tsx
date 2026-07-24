@@ -103,7 +103,6 @@ export default async function TurfDetailPage({
           pricePerHour={Number(turf.pricePerHour)}
           openTimeMinutes={turf.openTimeMinutes}
           closeTimeMinutes={turf.closeTimeMinutes}
-          slotDurationMinutes={turf.slotDurationMinutes}
           isAuthenticated={!!session?.user}
           loginUrl={loginUrl}
           contactNumber={turf.contactNumber}

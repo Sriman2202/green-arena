@@ -24,6 +24,7 @@ export async function GET(
   });
 
   const slots = computeAvailability(turf, date, bookings, blockedSlots);
+  const unavailable = [...bookings, ...blockedSlots];
 
-  return NextResponse.json({ date, slots });
+  return NextResponse.json({ date, slots, unavailable });
 }

@@ -15,13 +15,15 @@ function BookingRow({ booking, now }: { booking: BookingWithTurf; now: Date }) {
   const cutoff = new Date(now.getTime() + CANCELLATION_CUTOFF_HOURS * 60 * 60 * 1000);
   const canCancel = booking.status === "CONFIRMED" && start > cutoff;
   const isUpcoming = booking.status === "CONFIRMED" && start > now;
+  const isCompleted = booking.status === "CONFIRMED" && start <= now;
 
+  const displayStatus = isCompleted ? "COMPLETED" : booking.status;
   const badgeVariant =
-    booking.status === "CONFIRMED"
-      ? "default"
-      : booking.status === "CANCELLED"
-        ? "destructive"
-        : "secondary";
+    booking.status === "CANCELLED"
+      ? "destructive"
+      : isCompleted
+        ? "secondary"
+        : "default";
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -43,7 +45,7 @@ function BookingRow({ booking, now }: { booking: BookingWithTurf; now: Date }) {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant={badgeVariant}>{booking.status}</Badge>
+        <Badge variant={badgeVariant}>{displayStatus}</Badge>
         {isUpcoming && (
           <CancelBookingButton
             bookingId={booking.id}

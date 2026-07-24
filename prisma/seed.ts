@@ -153,6 +153,7 @@ async function main() {
     create: {
       name: "Green Arena Admin",
       email: "admin@greenarena.app",
+      phone: "9999999999",
       passwordHash: adminPasswordHash,
       role: "SUPER_ADMIN",
     },

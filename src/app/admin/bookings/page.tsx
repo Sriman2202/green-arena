@@ -161,8 +161,8 @@ export default async function AdminBookingsPage({
           <TableHeader>
             <TableRow>
               <TableHead>Booking ID</TableHead>
-              <TableHead>Turf</TableHead>
               <TableHead>User</TableHead>
+              <TableHead>Contact</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Time</TableHead>
               <TableHead>Amount</TableHead>
@@ -175,11 +175,11 @@ export default async function AdminBookingsPage({
                 <TableCell className="font-mono text-xs">
                   {formatBookingReference(booking.bookingNumber)}
                 </TableCell>
-                <TableCell className="font-medium">{booking.turf.name}</TableCell>
                 <TableCell>
                   <div>{booking.user.name}</div>
                   <div className="text-xs text-muted-foreground">{booking.user.email}</div>
                 </TableCell>
+                <TableCell>{booking.user.phone}</TableCell>
                 <TableCell>{booking.date}</TableCell>
                 <TableCell>
                   {minutesToLabel(booking.startMinutes)} – {minutesToLabel(booking.endMinutes)}
@@ -195,7 +195,7 @@ export default async function AdminBookingsPage({
             ))}
             {bookings.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No bookings match these filters.
                 </TableCell>
               </TableRow>

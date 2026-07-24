@@ -74,7 +74,7 @@ async function buildTurfInput(formData: FormData) {
 async function resolveOwnerId(formData: FormData): Promise<{ ownerId?: string | null; error?: string }> {
   const ownerMode = formData.get("ownerMode");
   if (ownerMode === "new") {
-    const ownerParsed = signUpSchema.safeParse({
+    const ownerParsed = signUpSchema.omit({ phone: true }).safeParse({
       name: formData.get("newOwnerName"),
       email: formData.get("newOwnerEmail"),
       password: formData.get("newOwnerPassword"),
@@ -88,7 +88,7 @@ async function resolveOwnerId(formData: FormData): Promise<{ ownerId?: string | 
     }
     const passwordHash = await bcrypt.hash(ownerParsed.data.password, 10);
     const newOwner = await prisma.user.create({
-      data: { name: ownerParsed.data.name, email: ownerParsed.data.email, passwordHash, role: "ADMIN" },
+      data: { name: ownerParsed.data.name, email: ownerParsed.data.email, phone: "", passwordHash, role: "ADMIN" },
     });
     return { ownerId: newOwner.id };
   } else {

@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { createBookingSchema } from "@/lib/validations/booking";
 import { slotStartDate } from "@/lib/slots";
 import { SlotUnavailableError } from "@/lib/errors";
-import { CANCELLATION_CUTOFF_HOURS, MAX_BOOKING_HOURS } from "@/lib/constants";
+import { BOOKING_STEP_MINUTES, CANCELLATION_CUTOFF_HOURS, MIN_BOOKING_MINUTES } from "@/lib/constants";
 
 export interface BookingFormState {
   error?: string;
@@ -42,14 +42,12 @@ export async function createBooking(
     return { error: "This turf is not available." };
   }
 
-  if (endMinutes <= startMinutes) {
-    return { error: "Invalid time range." };
+  const duration = endMinutes - startMinutes;
+  if (duration < MIN_BOOKING_MINUTES) {
+    return { error: `Minimum booking duration is ${MIN_BOOKING_MINUTES / 60} hour.` };
   }
-  if (endMinutes - startMinutes > MAX_BOOKING_HOURS * 60) {
-    return { error: `You can book at most ${MAX_BOOKING_HOURS} hours at a time.` };
-  }
-  if ((endMinutes - startMinutes) % turf.slotDurationMinutes !== 0) {
-    return { error: "Invalid time range." };
+  if (duration % BOOKING_STEP_MINUTES !== 0) {
+    return { error: `Booking duration must be in ${BOOKING_STEP_MINUTES}-minute increments.` };
   }
   if (startMinutes < turf.openTimeMinutes || endMinutes > turf.closeTimeMinutes) {
     return { error: "Invalid time slot." };

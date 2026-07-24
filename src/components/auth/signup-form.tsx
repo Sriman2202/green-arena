@@ -38,6 +38,18 @@ export function SignUpForm() {
           />
           <FieldError errors={state.fieldErrors?.email?.map((message) => ({ message }))} />
         </Field>
+        <Field data-invalid={!!state.fieldErrors?.phone}>
+          <FieldLabel htmlFor="phone">Phone number</FieldLabel>
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            required
+          />
+          <FieldError errors={state.fieldErrors?.phone?.map((message) => ({ message }))} />
+        </Field>
         <Field data-invalid={!!state.fieldErrors?.password}>
           <FieldLabel htmlFor="password">Password</FieldLabel>
           <PasswordInput
